@@ -1,3 +1,5 @@
+import { getSessionUser } from "../../lib/auth.js";
+
 const PACKAGES={starter:15000,growth:25000,business:45000,pro:85000};
 const json=(data,status=200)=>Response.json(data,{status,headers:{"cache-control":"no-store"}});
 const clean=(v,max=160)=>String(v||"").trim().slice(0,max);
@@ -17,13 +19,14 @@ export async function onRequestPost(context){
   const slug=clean(body.slug,80).toLowerCase().replace(/[^a-z0-9-]/g,"");
   const packageCode=clean(body.packageCode,20).toLowerCase();
   if(!slug||!PACKAGES[packageCode])return json({message:"Website dan paket wajib dipilih."},400);
-  const site=await context.env.DB.prepare("SELECT id,business_name FROM sites WHERE slug=? LIMIT 1").bind(slug).first();
+  const site=await context.env.DB.prepare("SELECT id,business_name,owner_id FROM sites WHERE slug=? LIMIT 1").bind(slug).first();
   if(!site)return json({message:"Website belum ditemukan."},404);
   const id=`order_${crypto.randomUUID()}`;
   const referralCode=clean(body.referralCode,80).toUpperCase();
   if(referralCode){
-    const ref=await context.env.DB.prepare("SELECT code FROM referral_codes WHERE code=? LIMIT 1").bind(referralCode).first();
+    const ref=await context.env.DB.prepare("SELECT code,owner_user_id FROM referral_codes WHERE code=? LIMIT 1").bind(referralCode).first();
     if(!ref)return json({message:"Kode referral tidak ditemukan."},400);
+    if(site.owner_id && ref.owner_user_id===site.owner_id)return json({message:"Kode referral sendiri tidak dapat digunakan untuk website ini."},400);
   }
   const customerName=clean(body.customerName,120),customerPhone=clean(body.customerPhone,30);
   const amount=PACKAGES[packageCode];
@@ -45,8 +48,10 @@ export async function onRequestPost(context){
 }
 export async function onRequestGet(context){
   if(!context.env?.DB)return json({orders:[],message:"D1 belum terhubung."},503);
+  const user=await getSessionUser(context.request,context.env);
+  if(!user)return json({orders:[],message:"Belum login."},401);
   const slug=clean(new URL(context.request.url).searchParams.get("slug"),80);
   if(!slug)return json({orders:[]});
-  const rows=await context.env.DB.prepare(`SELECT o.id,o.package_code,o.amount,o.customer_name,o.customer_phone,o.referral_code,o.payment_provider,o.payment_url,o.status,o.paid_at,o.created_at FROM orders o JOIN sites s ON s.id=o.site_id WHERE s.slug=? ORDER BY o.created_at DESC`).bind(slug).all();
+  const rows=await context.env.DB.prepare(`SELECT o.id,o.package_code,o.amount,o.customer_name,o.customer_phone,o.referral_code,o.payment_provider,o.payment_url,o.status,o.paid_at,o.created_at FROM orders o JOIN sites s ON s.id=o.site_id WHERE s.slug=? AND s.owner_id=? ORDER BY o.created_at DESC`).bind(slug,user.id).all();
   return json({orders:rows.results||[]});
 }
