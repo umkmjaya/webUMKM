@@ -6,6 +6,7 @@ export async function onRequestPost(context) {
   let body; try { body = await context.request.json(); } catch { return json({ ok: false, message: "Data JSON tidak valid." }, 400); }
   const businessName = String(body.businessName || "").trim(); if (!businessName) return json({ ok: false, message: "Nama usaha wajib diisi." }, 400);
   const slug = slugify(body.slug || businessName); const id = `site_${crypto.randomUUID()}`; const templateId = body.templateId || "tpl_umkm_modern"; const packageCode = body.packageCode || "business";
-  try { await context.env.DB.prepare(`INSERT INTO sites (id, slug, business_name, tagline, description, whatsapp, city, address, template_id, package_code, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`).bind(id, slug, businessName, body.tagline || "", body.description || "", body.whatsapp || "", body.city || "", body.address || "", templateId, packageCode).run(); return json({ ok: true, id, slug, url: `/sites/${slug}` }, 201); }
+  const content = body.content && typeof body.content === "object" ? JSON.stringify(body.content) : "{}";
+  try { await context.env.DB.prepare(`INSERT INTO sites (id, slug, business_name, tagline, description, whatsapp, city, address, content_json, template_id, package_code, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`).bind(id, slug, businessName, body.tagline || "", body.description || "", body.whatsapp || "", body.city || "", body.address || "", content, templateId, packageCode).run(); return json({ ok: true, id, slug, url: `/sites/${slug}` }, 201); }
   catch (error) { return json({ ok: false, message: error?.message || "Gagal membuat website." }, 500); }
 }
