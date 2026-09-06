@@ -4,51 +4,25 @@ const PACKAGES={starter:15000,growth:25000,business:45000,pro:85000};
 const json=(data,status=200)=>Response.json(data,{status,headers:{"cache-control":"no-store"}});
 const clean=(v,max=160)=>String(v||"").trim().slice(0,max);
 
-async function hmacSha256(text,key){
-  const cryptoKey=await crypto.subtle.importKey("raw",new TextEncoder().encode(key),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
-  const signature=await crypto.subtle.sign("HMAC",cryptoKey,new TextEncoder().encode(text));
-  return [...new Uint8Array(signature)].map(b=>b.toString(16).padStart(2,"0")).join("");
-}
-
-async function createDuitkuPayment(env,order,site,user,request){
-  if(!env.DUITKU_MERCHANT_CODE||!env.DUITKU_API_KEY)return null;
-  const merchantCode=env.DUITKU_MERCHANT_CODE;
-  const apiKey=env.DUITKU_API_KEY;
-  const timestamp=Date.now().toString();
-  const signature=await hmacSha256(`${merchantCode}${timestamp}`,apiKey);
+async function createLouvinPayment(env,order,site,user,request){
+  if(!env.LOUVIN_API_KEY)return null;
   const origin=new URL(request.url).origin;
-  const callbackUrl=env.DUITKU_CALLBACK_URL||`${origin}/api/payment/webhook`;
-  const returnUrl=env.PAYMENT_FINISH_URL||`${origin}/admin/dashboard.html?payment=duitku`;
-  const customerName=clean(order.customerName||site.business_name,120);
-  const parts=customerName.split(/\s+/);
-  const firstName=parts.shift()||"Pelanggan";
-  const lastName=parts.join(" ")||"UMKM";
   const payload={
-    paymentAmount:order.amount,
-    merchantOrderId:order.id,
-    productDetails:`Website UMKM ${order.packageCode}`,
-    additionalParam:"",
-    merchantUserInfo:user.email,
-    paymentMethod:"",
-    customerVaName:customerName.slice(0,20),
-    email:user.email,
-    phoneNumber:order.customerPhone||"",
-    itemDetails:[{name:`Website UMKM ${order.packageCode}`,price:order.amount,quantity:1}],
-    customerDetail:{
-      firstName,
-      lastName,
-      email:user.email,
-      phoneNumber:order.customerPhone||"",
-      merchantCustomerId:user.id
-    },
-    callbackUrl,
-    returnUrl,
-    expiryPeriod:60
+    amount:order.amount,
+    payment_type:"qris",
+    customer_name:clean(order.customerName||site.business_name,120),
+    customer_email:user.email,
+    description:`Website UMKM ${order.packageCode}`,
+    reference:order.id,
+    source_url:origin
   };
-  const base=env.DUITKU_IS_PRODUCTION==="true"?"https://api-prod.duitku.com":"https://api-sandbox.duitku.com";
-  const r=await fetch(`${base}/api/merchant/createInvoice`,{method:"POST",headers:{"content-type":"application/json","x-duitku-signature":signature,"x-duitku-timestamp":timestamp,"x-duitku-merchantcode":merchantCode},body:JSON.stringify(payload)});
+  const r=await fetch("https://api.louvin.dev/create-transaction",{
+    method:"POST",
+    headers:{"content-type":"application/json","x-api-key":env.LOUVIN_API_KEY},
+    body:JSON.stringify(payload)
+  });
   const data=await r.json().catch(()=>({}));
-  if(!r.ok||String(data.statusCode||"")!=="00")throw new Error(data.statusMessage||"Gagal membuat pembayaran Duitku");
+  if(!r.ok||!data.success)throw new Error(data.error||data.message||"Gagal membuat pembayaran Louvin");
   return data;
 }
 
@@ -74,13 +48,15 @@ export async function onRequestPost(context){
   await context.env.DB.prepare(`INSERT INTO orders (id,site_id,package_code,amount,customer_name,customer_phone,referral_code,status) VALUES (?,?,?,?,?,?,?,'pending')`).bind(id,site.id,packageCode,amount,customerName,customerPhone,referralCode||null).run();
   if(referralCode){await context.env.DB.prepare(`INSERT INTO referrals (id,referral_code,referred_site_id,order_id,reward,status) VALUES (?,?,?,?,25000,'pending')`).bind(`ref_${crypto.randomUUID()}`,referralCode,site.id,id).run();}
   try{
-    const payment=await createDuitkuPayment(context.env,{id,amount,customerName,customerPhone,packageCode},site,user,context.request);
+    const payment=await createLouvinPayment(context.env,{id,amount,customerName,customerPhone,packageCode},site,user,context.request);
     if(payment){
-      await context.env.DB.prepare(`UPDATE orders SET payment_provider='duitku',payment_reference=?,payment_url=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(payment.reference||null,payment.paymentUrl||null,id).run();
-      return json({ok:true,orderId:id,amount,status:"pending",paymentProvider:"duitku",paymentReference:payment.reference||null,paymentUrl:payment.paymentUrl||null,message:"Order berhasil dibuat. Lanjutkan pembayaran di Duitku."},201);
+      const transaction=payment.transaction||{};
+      const pay=payment.payment||{};
+      await context.env.DB.prepare(`UPDATE orders SET payment_provider='louvin',payment_reference=?,payment_url=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(transaction.id||null,null,id).run();
+      return json({ok:true,orderId:id,amount,status:"pending",paymentProvider:"louvin",paymentReference:transaction.id||null,paymentUrl:null,paymentQrString:pay.qr_string||null,paymentNumber:pay.payment_number||null,totalPayment:pay.total_payment||transaction.amount||amount,expiredAt:pay.expired_at||null,message:"Order berhasil dibuat. Silakan bayar menggunakan QRIS."},201);
     }
   }catch(error){await context.env.DB.prepare(`UPDATE orders SET status='payment_error',updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(id).run();return json({message:error.message,orderId:id},502)}
-  return json({ok:true,orderId:id,amount,status:"pending",paymentProvider:null,message:"Order tersimpan. Tambahkan DUITKU_MERCHANT_CODE dan DUITKU_API_KEY untuk pembayaran otomatis."},201);
+  return json({ok:true,orderId:id,amount,status:"pending",paymentProvider:null,message:"Order tersimpan. Tambahkan LOUVIN_API_KEY di Cloudflare untuk mengaktifkan pembayaran."},201);
 }
 
 export async function onRequestGet(context){
