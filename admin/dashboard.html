@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>webUMKM — Dashboard</title><link rel="stylesheet" href="style.css">
+<style>
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.card{background:#fff;border:1px solid #e5e1da;border-radius:16px;padding:18px}.value{font-size:28px;font-weight:800;margin-top:8px}.muted{color:#777}.top{display:flex;justify-content:space-between;align-items:center;gap:16px}.code{font-size:22px;font-weight:800;letter-spacing:1px}.row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid #eee}.row:last-child{border-bottom:0}.btn{display:inline-block;text-decoration:none;padding:10px 14px;border-radius:10px;border:1px solid #ddd;color:#222;background:#fff}.primary{cursor:pointer}.empty{text-align:center;padding:30px;color:#777}@media(max-width:800px){.grid{grid-template-columns:repeat(2,1fr)}.top{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="topbar"><div><strong>webUMKM</strong><span class="muted"> Dashboard pelanggan</span></div><button id="logout" class="outline">Keluar</button></header>
+<main class="container">
+<section class="panel"><div class="top"><div><p class="eyebrow">SELAMAT DATANG</p><h1 id="name">Memuat...</h1><p id="email" class="muted"></p></div><a class="btn" href="index.html">Buat / edit website</a></div></section>
+<section class="grid" style="margin-top:16px"><div class="card"><div class="muted">Website Saya</div><div id="siteCount" class="value">0</div></div><div class="card"><div class="muted">Referral</div><div id="refCount" class="value">0</div></div><div class="card"><div class="muted">Referral berhasil</div><div id="earned" class="value">0</div></div><div class="card"><div class="muted">Saldo referral</div><div id="balance" class="value">Rp0</div></div></section>
+<section class="panel" style="margin-top:16px"><div class="top"><div><p class="eyebrow">PROGRAM REFERAL</p><h2>Kode referral Anda</h2><p class="muted">Bagikan kode ini. Anda mendapatkan Rp25.000 untuk referral yang berhasil melakukan order dan pembayaran.</p></div><div><div id="refCode" class="code">-</div><button id="copy" class="btn" style="margin-top:8px">Salin kode</button></div></div></section>
+<section class="panel" style="margin-top:16px"><h2>Website Saya</h2><div id="sites"><div class="empty">Memuat website...</div></div></section>
+<section class="panel" style="margin-top:16px"><h2>Aktivitas Referral</h2><div id="refs"><div class="empty">Memuat...</div></div></section>
+</main></div>
+<script>
+const $=id=>document.getElementById(id);const money=n=>new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(Number(n||0));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function load(){
+ const me=await fetch('../api/auth/me'); if(!me.ok){location.href='login.html';return;} const md=await me.json();
+ $('name').textContent=md.user?.name||'Pelanggan';$('email').textContent=md.user?.email||'';
+ const [sr,rr]=await Promise.all([fetch('../api/sites'),fetch('../api/auth/referral')]);
+ if(sr.status===401){location.href='login.html';return;}
+ const sd=await sr.json();const rd=await rr.json();const sites=sd.sites||[];
+ $('siteCount').textContent=sites.length;$('refCount').textContent=rd.total||0;$('earned').textContent=rd.earned||0;$('balance').textContent=money(rd.balance);$('refCode').textContent=rd.referralCode||'-';
+ $('sites').innerHTML=sites.length?sites.map(s=>`<div class="row"><div><strong>${esc(s.business_name)}</strong><div class="muted">${esc(s.slug)} · ${esc(s.template_id)} · ${esc(s.package_code)} · ${esc(s.status)}</div></div><a class="btn" href="../sites/${encodeURIComponent(s.slug)}" target="_blank">Lihat</a></div>`).join(''):'<div class="empty">Belum ada website. Klik “Buat / edit website” untuk mulai.</div>';
+ const refs=rd.referrals||[];$('refs').innerHTML=refs.length?refs.map(r=>`<div class="row"><div><strong>${money(r.reward)}</strong><div class="muted">${esc(r.id)} · ${esc(r.order_status||'')}</div></div><span>${esc(r.status)}</span></div>`).join(''):'<div class="empty">Belum ada referral.</div>';
+}
+$('copy').onclick=async()=>{const code=$('refCode').textContent;if(code&&code!=='-'){await navigator.clipboard.writeText(code);$('copy').textContent='Tersalin!';setTimeout(()=>$('copy').textContent='Salin kode',1500)}};
+$('logout').onclick=async()=>{await fetch('../api/auth/logout',{method:'POST'});location.href='login.html'};
+load();
+</script></body></html>
