@@ -1,7 +1,7 @@
 const PACKAGES={starter:15000,growth:25000,business:45000,pro:85000};
 const json=(data,status=200)=>Response.json(data,{status,headers:{"cache-control":"no-store"}});
 const clean=(v,max=160)=>String(v||"").trim().slice(0,max);
-async function createMidtransPayment(env,order,site,body){
+async function createMidtransPayment(env,order,site){
   if(!env.MIDTRANS_SERVER_KEY)return null;
   const auth=btoa(`${env.MIDTRANS_SERVER_KEY}:`);
   const base=env.MIDTRANS_IS_PRODUCTION==="true"?"https://app.midtrans.com":"https://app.sandbox.midtrans.com";
@@ -20,7 +20,11 @@ export async function onRequestPost(context){
   const site=await context.env.DB.prepare("SELECT id,business_name FROM sites WHERE slug=? LIMIT 1").bind(slug).first();
   if(!site)return json({message:"Website belum ditemukan."},404);
   const id=`order_${crypto.randomUUID()}`;
-  const referralCode=clean(body.referralCode,80);
+  const referralCode=clean(body.referralCode,80).toUpperCase();
+  if(referralCode){
+    const ref=await context.env.DB.prepare("SELECT code FROM referral_codes WHERE code=? LIMIT 1").bind(referralCode).first();
+    if(!ref)return json({message:"Kode referral tidak ditemukan."},400);
+  }
   const customerName=clean(body.customerName,120),customerPhone=clean(body.customerPhone,30);
   const amount=PACKAGES[packageCode];
   await context.env.DB.prepare(`INSERT INTO orders (id,site_id,package_code,amount,customer_name,customer_phone,referral_code,status) VALUES (?,?,?,?,?,?,?,'pending')`).bind(id,site.id,packageCode,amount,customerName,customerPhone,referralCode||null).run();
@@ -28,7 +32,7 @@ export async function onRequestPost(context){
     await context.env.DB.prepare(`INSERT INTO referrals (id,referral_code,referred_site_id,order_id,reward,status) VALUES (?,?,?,?,25000,'pending')`).bind(`ref_${crypto.randomUUID()}`,referralCode,site.id,id).run();
   }
   try{
-    const payment=await createMidtransPayment(context.env,{id,amount,customerName,customerPhone,packageCode},site,body);
+    const payment=await createMidtransPayment(context.env,{id,amount,customerName,customerPhone,packageCode},site);
     if(payment){
       await context.env.DB.prepare(`UPDATE orders SET payment_provider='midtrans',payment_reference=?,payment_url=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(payment.token||null,payment.redirect_url||null,id).run();
       return json({ok:true,orderId:id,amount,status:"pending",paymentProvider:"midtrans",paymentToken:payment.token||null,paymentUrl:payment.redirect_url||null,message:"Order berhasil dibuat. Lanjutkan pembayaran."},201);
