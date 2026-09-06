@@ -22,7 +22,10 @@ export async function onRequestPost(context){
   if(success){
     await context.env.DB.prepare("UPDATE sites SET status='active',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(order.site_id).run();
     if(order.referral_code){
-      await context.env.DB.prepare("UPDATE referrals SET status='earned' WHERE order_id=? AND status='pending'").bind(orderId).run();
+      const changed=await context.env.DB.prepare("UPDATE referrals SET status='earned' WHERE order_id=? AND status='pending'").bind(orderId).run();
+      if((changed.meta?.changes||0)>0){
+        await context.env.DB.prepare("UPDATE referral_codes SET balance=balance+25000 WHERE code=?").bind(order.referral_code).run();
+      }
     }
   }
   return json({ok:true,orderId,status:nextStatus});
