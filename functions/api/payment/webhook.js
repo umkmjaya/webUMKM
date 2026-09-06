@@ -7,12 +7,19 @@ export async function onRequestGet(){
 export async function onRequestPost(context){
   if(!context.env?.DB)return json({message:"D1 belum terhubung."},503);
   let body={};
-  try{body=await context.request.json()}catch{return json({message:"Data webhook Louvin tidak valid."},400)}
+  try{body=await context.request.json()}catch{return json({ok:true,service:"louvin-webhook",validation:true});}
 
   const event=String(body.event||"").trim();
   const data=body.data||{};
   const transactionId=String(data.transaction_id||"").trim();
   const orderId=String(data.order_id||data.reference||"").trim();
+
+  // Louvin may validate the webhook URL with an empty POST before saving it.
+  // Return 200 for validation requests without touching the database.
+  if(!event&&!orderId&&!transactionId){
+    return json({ok:true,service:"louvin-webhook",validation:true});
+  }
+
   if(!event||!orderId)return json({message:"Webhook Louvin tidak lengkap."},400);
 
   const order=await context.env.DB.prepare("SELECT id,site_id,amount,status,referral_code FROM orders WHERE id=? LIMIT 1").bind(orderId).first();
