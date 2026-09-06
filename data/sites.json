@@ -1,0 +1,16 @@
+{
+  "kedai-nusantara": {
+    "slug": "kedai-nusantara",
+    "template": "umkm-modern",
+    "status": "active",
+    "site": {
+      "name": "Kedai Nusantara",
+      "tagline": "Rasa Lokal, Kualitas Maksimal",
+      "description": "Tempat menikmati makanan dan minuman khas Nusantara dengan bahan pilihan dan rasa yang dibuat sepenuh hati.",
+      "whatsapp": "6281234567890",
+      "city": "Gombong",
+      "address": "Jl. Raya Gombong No. 10, Kebumen",
+      "hours": "Setiap hari, 08.00 - 21.00"
+    }
+  }
+}
