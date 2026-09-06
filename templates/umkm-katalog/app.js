@@ -1,0 +1,4 @@
+const data={name:'Kedai Nusantara',tagline:'Rasa Lokal, Kualitas Maksimal',description:'Produk pilihan dengan kualitas terbaik untuk kebutuhan Anda.',whatsapp:'6281234567890',city:'Gombong, Jawa Tengah',address:'Jl. Contoh No. 123, Gombong'};
+const set=(key,value)=>document.querySelectorAll(`[data-${key}]`).forEach(el=>el.textContent=value||'');
+set('name',data.name);set('tagline',data.tagline);set('description',data.description);set('city',data.city);set('address',data.address);
+document.querySelectorAll('[data-wa]').forEach(a=>a.href=`https://wa.me/${encodeURIComponent(data.whatsapp)}`);document.querySelector('#year').textContent=new Date().getFullYear();
