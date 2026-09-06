@@ -1,0 +1,128 @@
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS templates (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  description TEXT,
+  preview_image TEXT,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS packages (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  price INTEGER NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  referral_code TEXT NOT NULL UNIQUE,
+  referral_balance INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sites (
+  id TEXT PRIMARY KEY,
+  slug TEXT NOT NULL UNIQUE,
+  business_name TEXT NOT NULL,
+  tagline TEXT,
+  description TEXT,
+  whatsapp TEXT,
+  city TEXT,
+  address TEXT,
+  content_json TEXT NOT NULL DEFAULT '{}',
+  template_id TEXT NOT NULL,
+  package_code TEXT NOT NULL DEFAULT 'starter',
+  status TEXT NOT NULL DEFAULT 'draft',
+  custom_domain TEXT UNIQUE,
+  owner_id TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (template_id) REFERENCES templates(id),
+  FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS referrals (
+  id TEXT PRIMARY KEY,
+  referral_code TEXT NOT NULL,
+  referred_site_id TEXT NOT NULL,
+  reward INTEGER NOT NULL DEFAULT 25000,
+  status TEXT NOT NULL DEFAULT 'pending',
+  order_id TEXT,
+  referrer_name TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (referred_site_id) REFERENCES sites(id)
+);
+
+CREATE TABLE IF NOT EXISTS referral_codes (
+  code TEXT PRIMARY KEY,
+  owner_user_id TEXT NOT NULL,
+  balance INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (owner_user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS orders (
+  id TEXT PRIMARY KEY,
+  site_id TEXT NOT NULL,
+  package_code TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  customer_name TEXT,
+  customer_phone TEXT,
+  referral_code TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  payment_method TEXT,
+  payment_provider TEXT,
+  payment_reference TEXT,
+  payment_url TEXT,
+  paid_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (site_id) REFERENCES sites(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sites_slug ON sites(slug);
+CREATE INDEX IF NOT EXISTS idx_sites_status ON sites(status);
+CREATE INDEX IF NOT EXISTS idx_sites_owner ON sites(owner_id);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_referral ON users(referral_code);
+CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_site_id ON orders(site_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_referral ON orders(referral_code);
+CREATE INDEX IF NOT EXISTS idx_orders_payment_reference ON orders(payment_reference);
+CREATE INDEX IF NOT EXISTS idx_referrals_code ON referrals(referral_code);
+CREATE INDEX IF NOT EXISTS idx_referral_codes_balance ON referral_codes(balance);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_referrals_order ON referrals(order_id) WHERE order_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_referrals_code_order ON referrals(referral_code, referred_site_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_referral_codes_owner ON referral_codes(owner_user_id);
+
+INSERT OR IGNORE INTO templates (id, name, slug, description)
+VALUES ('tpl_umkm_modern', 'UMKM Modern', 'umkm-modern', 'Template modern untuk UMKM dan bisnis lokal.');
+
+INSERT OR IGNORE INTO templates (id, name, slug, description)
+VALUES ('tpl_umkm_katalog', 'UMKM Katalog', 'umkm-katalog', 'Template katalog sederhana dengan fokus produk dan WhatsApp.');
+
+INSERT OR IGNORE INTO packages (id, code, name, price) VALUES
+  ('pkg_15', 'starter', 'Starter', 15000),
+  ('pkg_25', 'growth', 'Growth', 25000),
+  ('pkg_45', 'business', 'Business', 45000),
+  ('pkg_85', 'pro', 'Pro', 85000);
