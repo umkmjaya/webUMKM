@@ -1,0 +1,9 @@
+name = "webumkm"
+compatibility_date = "2026-09-06"
+
+# Setelah database D1 dibuat di Cloudflare, isi database_id di bagian d1_databases.
+# Binding ini dipakai oleh Pages Functions melalui context.env.DB.
+[[d1_databases]]
+binding = "DB"
+database_name = "webumkm"
+database_id = "ISI_DATABASE_ID_CLOUDFLARE"
