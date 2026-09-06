@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="id"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>webUMKM — Daftar</title><link rel="stylesheet" href="style.css"></head>
+<body><div class="app" style="min-height:100vh;display:grid;place-items:center"><main style="width:min(440px,92vw)"><div class="panel"><p class="eyebrow">WEBUMKM</p><h1>Buat akun</h1><p>Setelah daftar, Anda mendapatkan kode referral sendiri.</p><label>Nama<input id="name" autocomplete="name" placeholder="Nama Anda"></label><label>Email<input id="email" type="email" autocomplete="email" placeholder="nama@email.com"></label><label>Password<input id="password" type="password" autocomplete="new-password" placeholder="Minimal 8 karakter"></label><button id="register" class="primary">Buat Akun</button><p id="status" class="status"></p><hr><p>Sudah punya akun?</p><button id="login" class="outline">Masuk</button></div></main></div>
+<script>
+const $=id=>document.getElementById(id);const status=$('status');
+$('register').onclick=async()=>{status.textContent='Membuat akun...';try{const r=await fetch('../api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:$('name').value,email:$('email').value,password:$('password').value})});const d=await r.json();if(!r.ok)throw new Error(d.message||'Gagal daftar');status.textContent='Akun berhasil dibuat. Kode referral: '+d.user.referralCode;setTimeout(()=>location.href='index.html',700);}catch(e){status.textContent=e.message}};
+$('login').onclick=()=>location.href='login.html';
+</script></body></html>
