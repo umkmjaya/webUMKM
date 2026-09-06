@@ -1,5 +1,9 @@
 const json=(data,status=200)=>Response.json(data,{status,headers:{"cache-control":"no-store"}});
 
+export async function onRequestGet(){
+  return json({ok:true,service:"louvin-webhook"});
+}
+
 export async function onRequestPost(context){
   if(!context.env?.DB)return json({message:"D1 belum terhubung."},503);
   let body={};
